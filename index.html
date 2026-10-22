@@ -119,7 +119,7 @@ const designs=[
  {gaps:[[460,575],[890,1010],[1440,1560]],platforms:[[335,330,125],[630,313,135],[1080,320,155],[1600,319,150]]}
 ];
 let li=0,score=0,lives=3,player,camera=0,coins=[],enemies=[],finished=false,locked=true,frame=0;let playerAnswers={social:0,culture:0};
-let cpX=60,cpActive=false,shieldCharge=0,shieldTime=0,movePlatforms=[],sparkles=[];
+let cpX=60,cpActive=false,shieldCharge=0,shieldTime=0,movePlatforms=[],sparkles=[],airHazards=[],spikeHazards=[];
 let dashFrames=0,dashCooldown=0,dashDir=1,coinCombo=0,lastCoinFrame=-999;
 let difficulty='challenge',playerProfile={nickname:'',school:'',province:''};
 let runStarted=0,levelStarted=0,bonusItems=[],bonusCount=0,finalSubmitted=false;
@@ -129,7 +129,7 @@ let practiceContinue=false, continueUsed=0;
 const SHEETS_WEB_APP_URL='https://script.google.com/macros/s/AKfycbw9gOxefj7VxhsSteMQPjNGbCY4XroVZ6lQTlsF9Z3fjYEU3SeGEjqjCG2ydLuJCkDzJA/exec';
 function newRunId(){return Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,10)}
 function elapsed(){return runStarted?Math.floor((performance.now()-runStarted)/1000):0}
-function renderExtra(){const e=elapsed();$('timerLine').textContent='⏱️ '+Math.floor(e/60)+':'+String(e%60).padStart(2,'0');$('itemLine').textContent='✨ ไอเท็ม '+bonusCount;$('modeLine').textContent=difficulty==='challenge'?'🔥 โหมดท้าทาย':'🌿 โหมดฝึกเล่น'}
+function renderExtra(){const e=elapsed();$('timerLine').textContent='⏱️ '+Math.floor(e/60)+':'+String(e%60).padStart(2,'0');$('itemLine').textContent='✨ ไอเท็ม '+bonusCount;$('modeLine').textContent='🔥 EXTREME QUEST'}
 const THAI_PROVINCES=['กรุงเทพมหานคร', 'กระบี่', 'กาญจนบุรี', 'กาฬสินธุ์', 'กำแพงเพชร', 'ขอนแก่น', 'จันทบุรี', 'ฉะเชิงเทรา', 'ชลบุรี', 'ชัยนาท', 'ชัยภูมิ', 'ชุมพร', 'เชียงราย', 'เชียงใหม่', 'ตรัง', 'ตราด', 'ตาก', 'นครนายก', 'นครปฐม', 'นครพนม', 'นครราชสีมา', 'นครศรีธรรมราช', 'นครสวรรค์', 'นนทบุรี', 'นราธิวาส', 'น่าน', 'บึงกาฬ', 'บุรีรัมย์', 'ปทุมธานี', 'ประจวบคีรีขันธ์', 'ปราจีนบุรี', 'ปัตตานี', 'พระนครศรีอยุธยา', 'พะเยา', 'พังงา', 'พัทลุง', 'พิจิตร', 'พิษณุโลก', 'เพชรบุรี', 'เพชรบูรณ์', 'แพร่', 'ภูเก็ต', 'มหาสารคาม', 'มุกดาหาร', 'แม่ฮ่องสอน', 'ยโสธร', 'ยะลา', 'ร้อยเอ็ด', 'ระนอง', 'ระยอง', 'ราชบุรี', 'ลพบุรี', 'ลำปาง', 'ลำพูน', 'เลย', 'ศรีสะเกษ', 'สกลนคร', 'สงขลา', 'สตูล', 'สมุทรปราการ', 'สมุทรสงคราม', 'สมุทรสาคร', 'สระแก้ว', 'สระบุรี', 'สิงห์บุรี', 'สุโขทัย', 'สุพรรณบุรี', 'สุราษฎร์ธานี', 'สุรินทร์', 'หนองคาย', 'หนองบัวลำภู', 'อ่างทอง', 'อำนาจเจริญ', 'อุดรธานี', 'อุตรดิตถ์', 'อุทัยธานี', 'อุบลราชธานี'];
 function makeProfileForm(){
  const wrap=el('div',undefined,'signup');
@@ -153,7 +153,7 @@ function beginWithProfile(){
  newGame();
 }
 function createBonuses(){
- bonusItems=[{x:690,y:270,type:'magnet',taken:false},{x:1380,y:270,type:'boost',taken:false},{x:1780,y:310,type:'shield',taken:false}];
+ bonusItems=[{x:690,y:270,type:'magnet',taken:false},{x:1380,y:270,type:'boost',taken:false},...(li<3?[{x:1780,y:310,type:'shield',taken:false}]:[])];
 }
 function collectBonus(b){
  b.taken=true;bonusCount++;score+=30;
@@ -162,7 +162,7 @@ function collectBonus(b){
  if(b.type==='shield'){shieldCharge=Math.min(3,shieldCharge+2)}
  sfx('power');setHUD();renderExtra();
 }
-// คะแนนมาตรฐาน 1,000: ผ่านด่าน 6×120=720 + คะแนนสะสม (ไม่เกิน 2,800) /10 =280
+// คะแนนจริงไม่จำกัดเพดาน (Raw Score) — Dashboard จะใช้ค่านี้ตรงกัน
 function capyScore1000(levelsDone, rawScore){
  return Math.max(0,Math.min(1000, Math.round(Math.max(0,Math.min(6,levelsDone))*120 + Math.max(0,Math.min(2800,rawScore))/10)));
 }
@@ -170,9 +170,9 @@ async function submitResult(status){
  if(finalSubmitted||!SHEETS_WEB_APP_URL.startsWith('https://script.google.com/macros/s/'))return;
  finalSubmitted=true;
  const payload={runId,nickname:playerProfile.nickname,school:playerProfile.school,province:playerProfile.province,score,levelsCompleted:status==='completed'?6:li,
-   durationSeconds:elapsed(),mode:difficulty,status,submittedAt:new Date().toISOString(),clientVersion:'capy-hero-2-challenge'};
+   durationSeconds:elapsed(),mode:difficulty,status,submittedAt:new Date().toISOString(),clientVersion:'capy-hero-2.2-raw-extreme'};
  try{await fetch(SHEETS_WEB_APP_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});
- finalStatus='ส่งคำขอบันทึกแล้ว โปรดตรวจสอบใน Google Sheets (เบราว์เซอร์ยืนยันผลรับไม่ได้)';
+ finalStatus='ส่งคะแนนแล้ว • สามารถดูอันดับบน Live Dashboard ได้หลังอัปเดต';
  }catch(error){finalStatus='การส่งข้อมูลมีปัญหา กรุณาตรวจสอบลิงก์ Apps Script';finalSubmitted=false}
 }
 
@@ -191,21 +191,25 @@ const keys={left:false,right:false};
 function el(tag,txt,cls){const e=document.createElement(tag);if(txt!==undefined)e.textContent=txt;if(cls)e.className=cls;return e}
 function button(txt,fn,cls='btn'){const b=el('button',txt,cls);b.type='button';b.addEventListener('click',fn);return b}
 function clearPanel(){panel.replaceChildren();overlay.classList.remove('hidden')}
-function setHUD(){$('levelText').textContent=`${levels[li].icon} ด่าน ${li+1}/6: ${levels[li].name}${cpActive?' • ✓ จุดพัก':''}`;$('lifeText').textContent='❤️'.repeat(Math.max(0,lives));$('scoreText').textContent=`🪙 ${score} คะแนน • 🔥 ${coinCombo} • 🛡️ ${shieldCharge}`;$('skill').textContent=shieldTime>0?'🛡️ เปิดอยู่':`🛡️ ${shieldCharge}`}
+function setHUD(){$('levelText').textContent=`${levels[li].icon} ด่าน ${li+1}/6: ${levels[li].name}${cpActive?' • ✓ จุดพัก':''}`;$('lifeText').textContent='❤️'.repeat(Math.max(0,lives));$('scoreText').textContent=`🏆 ${score.toLocaleString('th-TH')} คะแนนจริง • 🔥 ${coinCombo} • 🛡️ ${shieldCharge}`;$('skill').textContent=shieldTime>0?'🛡️ เปิดอยู่':`🛡️ ${shieldCharge}`}
 function onGround(x){return x>=0&&x<WORLD&&!designs[li].gaps.some(g=>x>=g[0]&&x<g[1])}
 function prepareLevel(){
  player={x:60,y:FLOOR-46,w:46,h:46,vx:0,vy:0,ground:false,inv:0,jumps:0};
  camera=0;frame=0;locked=false;finished=false;cpX=60;cpActive=false;shieldCharge=0;shieldTime=0;sparkles=[];dashFrames=0;dashCooldown=0;coinCombo=0;lastCoinFrame=-999;
  const d=designs[li];coins=[];levelStarted=elapsed();createBonuses();
- for(let x=170;x<WORLD-95;x+=115){if(onGround(x))coins.push({x,y:FLOOR-70-(x%3)*8,taken:false})}
+ for(let x=170;x<WORLD-95;x+=135){if(onGround(x))coins.push({x,y:FLOOR-70-(x%3)*8,taken:false})}
  for(const p of d.platforms)coins.push({x:p[0]+p[2]/2,y:p[1]-30,taken:false});
  // Real moving platforms added near existing gaps. They move vertically and can carry the player.
  movePlatforms=li===0?[{x:475,y:350,base:350,w:100,h:16,phase:0,lastY:350},{x:1193,y:326,base:326,w:92,h:16,phase:1.6,lastY:326}]:[{x:designs[li].gaps[0][0]+15,y:345,base:345,w:90,h:16,phase:0,lastY:345}];
- enemies=(difficulty==='challenge'?[300,670,760,1280,1620,1740]:[300,760,1280,1740]).filter(x=>onGround(x)).map((x,i)=>({x,y:FLOOR-34,w:36,h:34,origin:x,dir:i%2?1:-1,alive:true}));
+ enemies=[300,530,720,850,1160,1300,1530,1760,1880].filter((x,i)=>onGround(x)&& (li<2?i%3!==1:true)).map((x,i)=>({x,y:FLOOR-34,w:36,h:34,origin:x,dir:i%2?1:-1,alive:true}));
+ // Flying hazards cannot be stomped; each level adds more moving targets.
+ airHazards=[{x:510,baseY:290,range:36,phase:0,r:15},{x:1170,baseY:293,range:45,phase:2,r:16},{x:1670,baseY:315,range:45,phase:4,r:16}].slice(0,li<2?1:li<4?2:3);
+ // Ground traps avoid the gaps and remain visible; first level is an introduction.
+ spikeHazards=[420,810,1080,1490,1830].filter((x,i)=>onGround(x)&&onGround(x+36)&&(li>0 || i===2)).slice(0,Math.min(5,li+1));
  overlay.classList.add('hidden');setHUD()
 }
-function newGame(){unlockAudio();li=0;score=0;lives=difficulty==='challenge'?3:4;runStarted=performance.now();runId=newRunId();finalSubmitted=false;finalStatus='';practiceContinue=false;continueUsed=0;bonusCount=0;playerAnswers={social:0,culture:0};keys.left=false;keys.right=false;prepareLevel()}
-function startScreen(){clearPanel();panel.append(el('p','🐹 CAPY HERO 2.0 — CHALLENGE','eyebrow'),el('h2','พร้อมลุย 6 ด่านไหม?'),el('p','ภาพฉากสบายตาขึ้น ศัตรูไวขึ้น มีโบนัสเวลา โล่ Dash และไอเท็มพิเศษ'));panel.append(makeProfileForm());panel.append(button('🎮 เริ่มเกม',beginWithProfile,'btn primary'));panel.append(el('p','กด Space สองครั้งเพื่อกระโดดสองชั้น • Z พุ่ง • X ใช้โล่ • ทุกด่านเพิ่มความท้าทาย','muted'))}
+function newGame(){unlockAudio();li=0;score=0;lives=3;runStarted=performance.now();runId=newRunId();finalSubmitted=false;finalStatus='';practiceContinue=false;continueUsed=0;bonusCount=0;playerAnswers={social:0,culture:0};keys.left=false;keys.right=false;prepareLevel()}
+function startScreen(){clearPanel();panel.append(el('p','🐹 CAPY HERO 2.2 — EXTREME QUEST','eyebrow'),el('h2','พร้อมลุย 6 ด่านไหม?'),el('p','โหมดท้าทาย: ศัตรูเร็วขึ้น • โดรนลอยและหนาม • เก็บคอมโบ • พุ่งหลบด้วย ⚡ • คะแนนจริงไม่จำกัดเพดาน'));panel.append(makeProfileForm());panel.append(button('🎮 เริ่มเกม',beginWithProfile,'btn primary'));panel.append(el('p','กด Space สองครั้งเพื่อกระโดดสองชั้น • Z พุ่ง • X ใช้โล่ • ทุกด่านเพิ่มความท้าทาย','muted'))}
 function jump(){
  if(locked||!player||player.jumps>=2)return;
  const isSecond=player.jumps===1;
@@ -221,7 +225,7 @@ function hit(a,b){return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y}
 function hurt(){if(player.inv>0||locked)return;if(shieldTime>0){shieldTime=0;player.inv=45;sfx('power');return}lives--;sfx(lives<=0?'death':'hit');setHUD();if(lives<=0){locked=true;endScreen(false);return}respawn()}
 function update(dt){if(locked)return;frame+=dt;
  player.inv=Math.max(0,player.inv-dt);shieldTime=Math.max(0,shieldTime-dt);dashCooldown=Math.max(0,dashCooldown-dt);dashFrames=Math.max(0,dashFrames-dt);
- if(!cpActive&&player.x>safeCheckpoint()){cpX=safeCheckpoint();cpActive=true;shieldCharge=Math.min(2,shieldCharge+1);sfx('checkpoint');setHUD()}
+ if(!cpActive&&player.x>safeCheckpoint()){cpX=safeCheckpoint();cpActive=true;sfx('checkpoint');setHUD()}
  for(const p of movePlatforms){p.lastY=p.y;p.y=p.base+Math.sin(frame*.035+p.phase)*37}
  const oldBottom=player.y+player.h;
  player.vx=dashFrames>0?dashDir*13.8:(Number(keys.right)-Number(keys.left))*MOVE;
@@ -231,8 +235,15 @@ function update(dt){if(locked)return;frame+=dt;
  if(player.vy>=0){const bottom=player.y+player.h;if(oldBottom<=FLOOR+4&&bottom>=FLOOR&&(onGround(player.x+9)||onGround(player.x+player.w-9))){player.y=FLOOR-player.h;player.vy=0;player.ground=true;player.jumps=0}for(const p of designs[li].platforms){if(oldBottom<=p[1]+5&&bottom>=p[1]&&player.x+player.w>p[0]&&player.x<p[0]+p[2]&&(!player.ground||p[1]<FLOOR)){player.y=p[1]-player.h;player.vy=0;player.ground=true;player.jumps=0}}for(const p of movePlatforms){if(oldBottom<=p.y+12&&bottom>=p.y&&player.x+player.w>p.x&&player.x<p.x+p.w){player.y=p.y-player.h;player.vy=0;player.ground=true;player.jumps=0}}}
  if(player.y>H+70){hurt();return}
  for(const b of bonusItems){if(!b.taken&&Math.abs(player.x+23-b.x)<30&&Math.abs(player.y+23-b.y)<35)collectBonus(b)}
- for(const c of coins){if(c.taken)continue;const dx=player.x+23-c.x,dy=player.y+23-c.y;if(dx*dx+dy*dy<1100){c.taken=true;coinCombo=frame-lastCoinFrame<115?coinCombo+1:1;lastCoinFrame=frame;score+=10+(coinCombo>=3?5:0);if(coinCombo===3)sfx('combo');if(score%100===0)shieldCharge=Math.min(2,shieldCharge+1);sfx('coin');setHUD()}}
- for(const e of enemies){if(!e.alive)continue;e.x+=e.dir*(difficulty==='challenge'?1.45+li*.10:.85)*dt;if(Math.abs(e.x-e.origin)>42)e.dir*=-1;if(hit(player,e)){if(player.vy>1&&oldBottom<=e.y+15){e.alive=false;player.vy=-9;score+=20;sfx('stomp');setHUD()}else hurt()}}
+ for(const c of coins){if(c.taken)continue;const dx=player.x+23-c.x,dy=player.y+23-c.y;if(dx*dx+dy*dy<1100){c.taken=true;coinCombo=frame-lastCoinFrame<115?coinCombo+1:1;lastCoinFrame=frame;score+=10+(coinCombo>=3?5:0);if(coinCombo===3)sfx('combo');if(score%350===0)shieldCharge=Math.min(2,shieldCharge+1);sfx('coin');setHUD()}}
+ for(const e of enemies){if(!e.alive)continue;e.x+=e.dir*(1.9+li*.32)*dt;if(Math.abs(e.x-e.origin)>67)e.dir*=-1;if(hit(player,e)){if(player.vy>1&&oldBottom<=e.y+15){e.alive=false;player.vy=-9;score+=20;sfx('stomp');setHUD()}else hurt()}}
+ // Dynamic drones, blades and spike traps are real collision hazards, not decoration.
+ for(const a of airHazards){
+   a.cx=a.x+Math.sin(frame*.036+a.phase)*68;
+   a.cy=a.baseY+Math.sin(frame*.065+a.phase)*a.range;
+   if(hit(player,{x:a.cx-a.r+4,y:a.cy-a.r+4,w:a.r*2-8,h:a.r*2-8}))hurt();
+ }
+ for(const x of spikeHazards){if(hit(player,{x:x+5,y:FLOOR-17,w:31,h:17}))hurt()}
  sparkles=sparkles.filter(p=>p.life>0);for(const p of sparkles){p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=dt}
  camera+=((Math.min(WORLD-W,Math.max(0,player.x-265)))-camera)*Math.min(.2,dt*.12);
  if(player.x>=WORLD-85){const spent=elapsed()-levelStarted;score+=Math.max(0,Math.round((difficulty==='challenge'?115:80)-spent))*3;locked=true;sfx('level');setHUD();quizScreen()}
@@ -300,6 +311,9 @@ function draw(){
  const xx=safeCheckpoint();ctx.fillStyle=cpActive?'#5bc981':'#fff1cf';ctx.fillRect(xx,FLOOR-92,5,92);emoji(cpActive?'✅':'🚩',xx+20,FLOOR-91,32)
  for(const p of sparkles){ctx.globalAlpha=Math.max(0,p.life/22);emoji('✨',p.x,p.y,16)}ctx.globalAlpha=1;
  for(const e of enemies)if(e.alive)drawCuteEnemy(e,pal);
+ for(const x of spikeHazards){ctx.fillStyle='#e65d64';ctx.strokeStyle='#fff4d7';ctx.lineWidth=2;for(let i=0;i<3;i++){ctx.beginPath();ctx.moveTo(x+i*12,FLOOR);ctx.lineTo(x+i*12+6,FLOOR-22);ctx.lineTo(x+i*12+12,FLOOR);ctx.closePath();ctx.fill();ctx.stroke()}}
+ for(const a of airHazards){const ax=a.cx===undefined?a.x:a.cx,ay=a.cy===undefined?a.baseY:a.cy;ctx.save();ctx.translate(ax,ay);ctx.shadowColor='#ff5570';ctx.shadowBlur=15;ctx.fillStyle='#ff527d';ctx.beginPath();ctx.arc(0,0,a.r,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;ctx.strokeStyle='#fff';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(-8,-8);ctx.lineTo(8,8);ctx.moveTo(8,-8);ctx.lineTo(-8,8);ctx.stroke();ctx.restore()}
+
  ctx.fillStyle='#ffffffc0';ctx.beginPath();ctx.roundRect(WORLD-86,255,32,78,12);ctx.fill();ctx.fillStyle=pal.flag;ctx.beginPath();ctx.roundRect(WORLD-54,263,42,24,8);ctx.fill();ctx.strokeStyle='#c9982c';ctx.stroke();ctx.fillStyle='#6d5125';ctx.font='bold 12px sans-serif';ctx.fillText('GO',WORLD-33,280);
  if(player&&(!player.inv||Math.floor(frame/6)%2===0)){const x=player.x,y=player.y;drawCapyPlayer(x,y)}ctx.restore()}
 function quizScreen(){clearPanel();const lv=levels[li];panel.append(el('p',`${lv.icon} ภารกิจสำเร็จ`,'eyebrow'),el('h2',`ผ่านด่าน ${li+1}: ${lv.name}`),el('p',lv.lesson),el('p',`🧠 ${lv.question}`));const feedback=el('p','','feedback');lv.options.forEach((answer,i)=>{const b=button(`${i+1}. ${answer}`,()=>{if(i!==lv.correct){sfx('wrong');feedback.textContent='ยังไม่ถูก ลองใหม่อีกครั้ง';return}sfx('correct');feedback.textContent='✅ ถูกต้อง!';feedback.style.color='#267348';panel.querySelectorAll('.answer').forEach(v=>v.disabled=true);panel.append(button(li===5?'✨ ค้นหาสาขาที่สนใจ':'➡️ ไปด่านต่อไป',()=>{if(li===5){interestScreen()}else{li++;prepareLevel()}},'btn primary'))},'btn answer');panel.append(b)});panel.append(feedback)}
@@ -317,9 +331,9 @@ function continueCheckpoint(){
 function endScreen(win){
  clearPanel();
  panel.append(el('h2',win?'🎉 สำเร็จ':'💔 พลังหมดแล้ว'));
- panel.append(el('p',`คะแนนมาตรฐาน ${capyScore1000(li,score)} / 1,000 คะแนน • ผ่าน ${li}/6 ด่าน • คะแนนสะสมเดิม ${score}`));
+ panel.append(el('p',`🏆 คะแนนจริง ${score.toLocaleString('th-TH')} คะแนน • ผ่าน ${li}/6 ด่าน • เวลา ${elapsed()} วินาที`));
  if(practiceContinue)panel.append(el('p','โหมดเล่นต่อเพื่อฝึกฝน: คะแนนรอบนี้จะไม่ส่งเข้าอันดับแข่งขัน','muted'));
- if(continueUsed<2){panel.append(button(`⚡ เล่นต่อจากจุดพัก (หัก 100 คะแนน) • เหลือ ${2-continueUsed} ครั้ง`,continueCheckpoint,'btn primary'));}
+ if(continueUsed<2){panel.append(button(`⚡ เล่นต่อฝึกฝนจากจุดพัก (หัก 100 คะแนน) • เหลือ ${2-continueUsed} ครั้ง`,continueCheckpoint,'btn primary'));}
  panel.append(button('↻ เริ่มเกมใหม่',()=>{if(!practiceContinue)submitResult('gameover');newGame()},'btn'));
  const status=el('p','','muted');status.setAttribute('aria-live','polite');
  const finish=button('🏁 จบเกมและบันทึกคะแนน',async()=>{
@@ -333,7 +347,34 @@ function endScreen(win){
 
 let last=0;function loop(t){const dt=Math.min(2,(t-last)/16.667||1);last=t;update(dt);draw();requestAnimationFrame(loop)}
 function bind(id,key){const b=$(id);b.addEventListener('pointerdown',e=>{e.preventDefault();b.setPointerCapture(e.pointerId);b.classList.add('pressed');if(key==='jump')jump();else keys[key]=true});function release(e){e.preventDefault();b.classList.remove('pressed');if(key!=='jump')keys[key]=false}b.addEventListener('pointerup',release);b.addEventListener('pointercancel',release);b.addEventListener('lostpointercapture',()=>{b.classList.remove('pressed');if(key!=='jump')keys[key]=false})}bind('left','left');bind('right','right');bind('jump','jump');$('dash').addEventListener('pointerdown',e=>{e.preventDefault();dash()});$('skill').addEventListener('click',useShield);
-window.addEventListener('keydown',e=>{if(['ArrowLeft','ArrowRight','Space','ArrowUp','KeyA','KeyD','KeyW','KeyX'].includes(e.code))e.preventDefault();if(['ArrowLeft','KeyA'].includes(e.code))keys.left=true;if(['ArrowRight','KeyD'].includes(e.code))keys.right=true;if(['Space','ArrowUp','KeyW'].includes(e.code)&&!e.repeat)jump();if(e.code==='KeyZ'&&!e.repeat)dash();if(e.code==='KeyX'&&!e.repeat)useShield()});window.addEventListener('keyup',e=>{if(['ArrowLeft','KeyA'].includes(e.code))keys.left=false;if(['ArrowRight','KeyD'].includes(e.code))keys.right=false});window.addEventListener('blur',()=>{keys.left=false;keys.right=false});$('restart').onclick=()=>{if(confirm('ต้องการเริ่มเกมใหม่?'))newGame()};$('how').onclick=startScreen;
+// Do not steal A/D/W/X (or Thai characters on the same physical keys)
+// while a student is typing their province, school, or nickname.
+function isTypingInForm(e){
+  const t=e.target;
+  const a=document.activeElement;
+  const editable=n=>n && (n.isContentEditable ||
+    ['INPUT','TEXTAREA','SELECT'].includes(n.tagName) ||
+    (typeof n.closest==='function' && !!n.closest('[contenteditable="true"],[role="textbox"]')));
+  return e.isComposing || e.key==='Process' || e.keyCode===229 ||
+    editable(t) || editable(a);
+}
+window.addEventListener('keydown',e=>{
+  if(isTypingInForm(e)){
+    keys.left=false; keys.right=false;
+    return;
+  }
+  if(['ArrowLeft','ArrowRight','Space','ArrowUp','KeyA','KeyD','KeyW','KeyX','KeyZ'].includes(e.code))e.preventDefault();
+  if(['ArrowLeft','KeyA'].includes(e.code))keys.left=true;
+  if(['ArrowRight','KeyD'].includes(e.code))keys.right=true;
+  if(['Space','ArrowUp','KeyW'].includes(e.code)&&!e.repeat)jump();
+  if(e.code==='KeyZ'&&!e.repeat)dash();
+  if(e.code==='KeyX'&&!e.repeat)useShield();
+});
+window.addEventListener('keyup',e=>{
+  if(isTypingInForm(e)){keys.left=false;keys.right=false;return;}
+  if(['ArrowLeft','KeyA'].includes(e.code))keys.left=false;
+  if(['ArrowRight','KeyD'].includes(e.code))keys.right=false;
+});window.addEventListener('blur',()=>{keys.left=false;keys.right=false});$('restart').onclick=()=>{if(confirm('ต้องการเริ่มเกมใหม่?'))newGame()};$('how').onclick=startScreen;
 prepareLevel();locked=true;startScreen();requestAnimationFrame(loop);
 </script>
 </body>
